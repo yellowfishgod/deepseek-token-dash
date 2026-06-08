@@ -17,31 +17,31 @@ pub struct ProxyEvent {
 
 pub fn start_proxy(app_handle: tauri::AppHandle, db_path: String) {
 
-    // We'll use a simple approach: start the proxy in a background thread
-    // using tokio. The proxy will listen on 127.0.0.1:8800.
-    let app_handle = app_handle.clone();
+    // Start proxy in a dedicated thread with its own tokio runtime
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        rt.block_on(async move {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:8800").await;
+            match listener {
+                Ok(listener) => {
+                    println!("Proxy listening on 127.0.0.1:8800");
+                    loop {
+                        if let Ok((stream, _)) = listener.accept().await {
+                            let client = Client::new();
+                            let db_path = db_path.clone();
+                            let app_handle = app_handle.clone();
 
-    tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:8800").await;
-        match listener {
-            Ok(listener) => {
-                println!("Proxy listening on 127.0.0.1:8800");
-                loop {
-                    if let Ok((stream, _)) = listener.accept().await {
-                        let client = Client::new();
-                        let db_path = db_path.clone();
-                        let app_handle = app_handle.clone();
-
-                        tokio::spawn(async move {
-                            handle_connection(stream, client, &db_path, &app_handle).await;
-                        });
+                            tokio::spawn(async move {
+                                handle_connection(stream, client, &db_path, &app_handle).await;
+                            });
+                        }
                     }
                 }
+                Err(e) => {
+                    eprintln!("Failed to bind proxy: {}", e);
+                }
             }
-            Err(e) => {
-                eprintln!("Failed to bind proxy: {}", e);
-            }
-        }
+        });
     });
 }
 
