@@ -70,7 +70,7 @@ function App() {
   }, [loadUsage, loadRecentRequests, loadKeys]);
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#e2e8f0] font-sans">
+    <div className="min-h-screen text-[#e2e8f0] font-sans">
       {page === "dashboard" && (
         <Dashboard
           keys={keys}

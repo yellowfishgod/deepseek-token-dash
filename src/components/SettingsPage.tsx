@@ -52,7 +52,7 @@ export default function SettingsPage({ keys, onKeysChanged, onBack }: Props) {
   };
 
   return (
-    <div className="p-3 pb-4 space-y-3">
+    <div className="w-[320px] p-3 pb-4 space-y-3 bg-[#0f172a] min-h-screen">
       {/* Header */}
       <div className="flex items-center gap-2">
         <button

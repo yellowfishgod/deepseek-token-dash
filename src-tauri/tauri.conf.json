@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "DeepSeek Token Dash",
         "width": 320,
         "height": 600,
@@ -19,6 +20,19 @@
         "decorations": true,
         "transparent": false,
         "visible": true
+      },
+      {
+        "label": "floating",
+        "title": "TokenDash",
+        "width": 140,
+        "height": 60,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

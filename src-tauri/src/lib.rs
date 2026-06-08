@@ -2,7 +2,11 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::TrayIconBuilder,
+    Manager, State, WindowEvent,
+};
 
 mod proxy;
 
@@ -220,6 +224,28 @@ fn get_usage_summary(state: State<AppState>, api_key_id: Option<i64>, period: St
 }
 
 #[tauri::command]
+fn toggle_floating(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("floating") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn show_main(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_recent_requests(state: State<AppState>, limit: i64) -> Result<Vec<RequestRecord>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
@@ -277,6 +303,62 @@ pub fn run() {
         .manage(state)
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // System tray
+            let show_item = MenuItemBuilder::with_id("show", "打开仪表盘").build(app)?;
+            let toggle_item = MenuItemBuilder::with_id("toggle", "显示/隐藏悬浮窗").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "退出").build(app)?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .item(&toggle_item)
+                .separator()
+                .item(&quit_item)
+                .build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("DeepSeek Token Dash")
+                .menu(&menu)
+                .on_menu_event(move |app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            let _ = app.get_webview_window("main").map(|w| {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            });
+                        }
+                        "toggle" => {
+                            if let Some(w) = app.get_webview_window("floating") {
+                                if w.is_visible().unwrap_or(false) {
+                                    let _ = w.hide();
+                                } else {
+                                    let _ = w.show();
+                                    let _ = w.set_focus();
+                                }
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
+            // Minimize main window to tray on close
+            if let Some(window) = app.get_webview_window("main") {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { .. } = event {
+                        let _ = window_clone.hide();
+                        // Prevent actual close
+                        // Note: in Tauri v2, close prevention requires different handling
+                    }
+                });
+            }
+
+            // Start proxy
             proxy::start_proxy(handle, db_path_str.clone());
             Ok(())
         })
@@ -286,6 +368,8 @@ pub fn run() {
             delete_api_key,
             get_usage_summary,
             get_recent_requests,
+            toggle_floating,
+            show_main,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

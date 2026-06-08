@@ -49,7 +49,7 @@ export default function Dashboard({
     : recentRequests;
 
   return (
-    <div className="p-3 pb-4 space-y-2.5">
+    <div className="w-[320px] p-3 pb-4 space-y-2.5 bg-[#0f172a] min-h-screen">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -59,8 +59,22 @@ export default function Dashboard({
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           <button
+            onClick={async () => {
+              try {
+                await import("@tauri-apps/api/core").then(({ invoke }) =>
+                  invoke("toggle_floating")
+                );
+              } catch (_) {}
+            }}
+            className="text-[10px] text-[#64748b] hover:text-[#94a3b8] transition-colors"
+            title="显示/隐藏悬浮窗"
+          >
+            📌
+          </button>
+          <button
             onClick={onOpenSettings}
             className="text-[10px] text-[#64748b] hover:text-[#94a3b8] transition-colors"
+            title="设置"
           >
             ⚙️
           </button>
