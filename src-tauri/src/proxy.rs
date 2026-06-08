@@ -152,18 +152,26 @@ async fn handle_connection(
     let status = response.status();
     let resp_headers = response.headers().clone();
 
-    // Extract DeepSeek token usage header
+    let resp_body = response.text().await.unwrap_or_default();
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+
+    // Extract token usage data — try x-ds-usage header first, then response body JSON
     let usage_header = resp_headers
         .get("x-ds-usage")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let resp_body = response.text().await.unwrap_or_default();
-    let duration_ms = start_time.elapsed().as_millis() as i64;
+    let usage = usage_header
+        .as_ref()
+        .and_then(|s| serde_json::from_str::<Value>(s).ok())
+        .or_else(|| {
+            serde_json::from_str::<Value>(&resp_body)
+                .ok()
+                .and_then(|body_json| body_json.get("usage").cloned())
+        });
 
     // Process token data in background
-    if let Some(usage_str) = usage_header {
-        if let Ok(usage) = serde_json::from_str::<Value>(&usage_str) {
+    if let Some(usage) = usage {
             let model = extract_model_from_request(&request_str);
             let prompt_tokens = usage["prompt_tokens"].as_i64().unwrap_or(0);
             let completion_tokens = usage["completion_tokens"].as_i64().unwrap_or(0);
@@ -242,7 +250,6 @@ async fn handle_connection(
                 };
                 let _ = app_handle.emit("token-usage", event);
             }
-        }
     }
 
     // Build and send response back to client
