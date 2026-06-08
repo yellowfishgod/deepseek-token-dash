@@ -268,13 +268,18 @@ pub fn run() {
 
     let state = AppState {
         db: Mutex::new(conn),
-        db_path: db_path_str,
+        db_path: db_path_str.clone(),
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .manage(state)
+        .setup(move |app| {
+            let handle = app.handle().clone();
+            proxy::start_proxy(handle, db_path_str.clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_api_keys,
             add_api_key,

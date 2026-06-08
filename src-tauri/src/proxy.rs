@@ -3,8 +3,6 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tauri::Emitter;
 
-use crate::AppState;
-
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct ProxyEvent {
     pub api_key_label: String,
@@ -17,8 +15,7 @@ pub struct ProxyEvent {
     pub duration_ms: i64,
 }
 
-pub async fn start_proxy(state: &AppState, app_handle: &tauri::AppHandle) {
-    let db_path = state.db_path.clone();
+pub fn start_proxy(app_handle: tauri::AppHandle, db_path: String) {
 
     // We'll use a simple approach: start the proxy in a background thread
     // using tokio. The proxy will listen on 127.0.0.1:8800.
