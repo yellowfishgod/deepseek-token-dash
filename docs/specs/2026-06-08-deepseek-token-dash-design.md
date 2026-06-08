@@ -4,9 +4,9 @@
 
 ## 一、产品定义
 
-**一句话**: 实时监控 DeepSeek API token 消耗的 Windows 桌面应用，通过本地代理拦截请求自动采集数据，以竖屏悬浮窗 + 完整仪表盘 + 系统托盘三种形态呈现。
+**一句话**: 实时监控 DeepSeek API token 消耗的 Windows 桌面应用。通过本地代理自动识别请求中的 API Key 并按 Key 独立统计，以竖屏悬浮窗 + 完整仪表盘 + 系统托盘三种形态呈现。
 
-**核心价值**: 不用打开任何网页后台，token 消耗数据自动出现在屏幕上，像网速监控一样自然。
+**核心价值**: 多个 API Key（不同项目/团队）的 token 消耗自动分类、各自追踪，不用打开任何网页后台，像网速监控一样自然。
 
 ## 二、技术选型
 
@@ -58,10 +58,10 @@
 ### 数据流
 
 1. 用户代码发送请求到 `http://127.0.0.1:8800/v1/chat/completions`
-2. Rust 代理转发到 `https://api.deepseek.com/v1/chat/completions`，保持 path 和 headers 不变
+2. Rust 代理从 `Authorization: Bearer <key>` 中提取 API Key，转发请求到 DeepSeek API
 3. DeepSeek 返回响应，header 中包含 `x-ds-usage` (token 信息)
-4. Rust 代理提取 token 数据，写入 SQLite，通过 Tauri Event 推送给前端
-5. 前端实时更新显示
+4. Rust 代理提取 token 数据，关联到对应的 API Key，写入 SQLite，通过 Tauri Event 推送给前端
+5. 前端实时更新显示，用户可按 Key 切换查看各自消耗或查看汇总
 6. 原始响应完整返回给用户代码，整个过程透明
 
 ## 四、界面设计
@@ -85,16 +85,24 @@
 #### 态二：仪表盘（展开）
 页面结构自上而下:
 1. **标题栏**: 应用名 + 代理状态指示灯
-2. **实时速度卡片**: 最大字号，核心指标
-3. **三指标行**: 今日消耗 / 今日费用 / 预算%
-4. **迷你趋势图**: 每小时用量 sparkline
-5. **最近请求**: 模型名 + token 数，保留 3-5 条
+2. **Key 选择器**: 下拉切换查看不同 Key 的消耗，或查看全部汇总
+3. **实时速度卡片**: 最大字号，核心指标（跟随当前选中的 Key）
+4. **三指标行**: 今日消耗 / 今日费用 / 预算%（跟随当前 Key）
+5. **迷你趋势图**: 每小时用量 sparkline
+6. **各 Key 汇总列表**: 每个 Key 带颜色标记，今日消耗 + 费用一览
+7. **最近请求**: 模型名 + 归属 Key + token 数，保留 3-5 条
 
 #### 态三：设置页
-三个 Tab 切换:
-- 💰 预算 — 月预算额度、告警阈值、重置周期
+四个 Tab 切换:
+- 💰 预算 — 月预算额度、告警阈值、重置周期（可按 Key 独立设置）
 - 🏷️ 价格 — 模型单价表，可增删改
+- 🔑 Key — 管理 API Key（添加/删除/编辑标签和颜色标记）
 - ⚙️ 代理 — 端口配置、Endpoint URL、开关项
+
+#### 添加/编辑 Key 弹窗
+- 标签（便于识别，如"项目A"、"个人测试"）
+- API Key 输入（脱敏显示：`sk-aaa...3f2s`）
+- 颜色标记选择（预设 5-6 种颜色，用于仪表盘区分）
 
 ### 系统托盘
 
@@ -113,17 +121,31 @@
 ### SQLite 表结构
 
 ```sql
+-- 用户注册的 API Key
+CREATE TABLE api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,                -- 用户命名的标签，如"项目A"
+    key_hash TEXT NOT NULL UNIQUE,      -- SHA256 哈希，只存哈希不存明文
+    key_prefix TEXT NOT NULL,           -- 前 7 位，用于 UI 显示 "sk-aaa..."
+    color TEXT NOT NULL DEFAULT '#fbbf24', -- 标记颜色
+    monthly_budget REAL,                -- 该 Key 的月预算，NULL 则继承全局
+    created_at INTEGER NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
 -- 每次 API 请求的记录
 CREATE TABLE requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp INTEGER NOT NULL,        -- Unix timestamp ms
+    api_key_id INTEGER NOT NULL,        -- 关联 api_keys.id
+    timestamp INTEGER NOT NULL,         -- Unix timestamp ms
     model TEXT NOT NULL,                -- e.g. "deepseek-chat"
     prompt_tokens INTEGER NOT NULL,
     completion_tokens INTEGER NOT NULL,
     total_tokens INTEGER NOT NULL,
     cost REAL,                          -- 计算得出
     duration_ms INTEGER,                -- 请求耗时
-    endpoint TEXT                       -- e.g. "/v1/chat/completions"
+    endpoint TEXT,                      -- e.g. "/v1/chat/completions"
+    FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
 );
 
 -- 应用设置
@@ -149,6 +171,13 @@ CREATE TABLE model_pricing (
 - `POST /v1/chat/completions` — 聊天补全（最常用）
 - `POST /v1/embeddings` — 嵌入（如有）
 
+### API Key 识别
+
+代理从每个请求的 `Authorization: Bearer <key>` 头中提取 API Key。提取后:
+1. 对 Key 做 SHA256 哈希，在 `api_keys` 表中查找匹配记录
+2. 如果 Key 未被注册 → 自动创建一条记录（标签默认为 Key 前缀），用户可在设置中补充标签
+3. 关联到对应 `api_key_id`，所有 token 消耗记账到该 Key 下
+
 ### Token 提取
 
 DeepSeek 在响应 header 中返回:
@@ -156,7 +185,7 @@ DeepSeek 在响应 header 中返回:
 x-ds-usage: {"prompt_tokens": 852, "completion_tokens": 435, "total_tokens": 1287}
 ```
 
-代理解析此 JSON，与请求模型名一起写入数据库。
+代理解析此 JSON，与请求模型名和 api_key_id 一起写入数据库。
 
 ### 费用计算
 
@@ -180,18 +209,18 @@ cost = (prompt_tokens / 1,000,000) * model_input_price
 | 阶段 | 内容 | 产出 |
 |---|---|---|
 | 1. 项目脚手架 | Tauri + React 初始化，Tailwind 配置 | 能跑的窗口 |
-| 2. Rust 代理 | HTTP 转发代理，token 提取，SQLite 存储 | 代理可用 |
-| 3. 前端仪表盘 | 竖屏布局，指标卡，实时更新 | 可视界面 |
+| 2. Rust 代理 | HTTP 转发代理，Key 识别，token 提取，SQLite 存储 | 代理可用 |
+| 3. 前端仪表盘 | 竖屏布局，指标卡，Key 切换，实时更新 | 可视界面 |
 | 4. 悬浮窗 | 置顶窗口，折叠/展开切换 | 桌面体验 |
 | 5. 系统托盘 | 托盘图标，右键菜单 | 后台运行 |
-| 6. 设置页 | 预算/价格/代理配置 | 完整功能 |
-| 7. 告警通知 | 预算阈值检测 + Windows 通知 | 提醒功能 |
+| 6. 设置页 | 预算/价格/Key管理/代理配置 | 完整功能 |
+| 7. 告警通知 | 预算阈值检测（按 Key）+ Windows 通知 | 提醒功能 |
 | 8. 打包发布 | Tauri build，安装包，自动更新 | 可分发的 exe |
 
 ## 九、后续可扩展（v2）
 
-- 多 API Key 支持
 - DeepSeek 之外支持 OpenAI / Claude 等多厂商
 - 数据导出 CSV/JSON
 - 悬浮窗皮肤/主题
 - 远程 Webhook 推送（团队共享）
+- 按 Key 的团队协作和共享视图
