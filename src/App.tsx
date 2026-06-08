@@ -10,6 +10,7 @@ function App() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
   const [usage, setUsage] = useState<TokenUsage[]>([]);
+  const [monthlyCost, setMonthlyCost] = useState(0);
   const [recentRequests, setRecentRequests] = useState<RequestRecord[]>([]);
   const [lastEvent, setLastEvent] = useState<ProxyEvent | null>(null);
 
@@ -34,6 +35,18 @@ function App() {
     }
   }, [selectedKeyId]);
 
+  const loadMonthlyCost = useCallback(async () => {
+    try {
+      const result = await invoke<TokenUsage[]>("get_usage_summary", {
+        apiKeyId: selectedKeyId ?? null,
+        period: "month",
+      });
+      setMonthlyCost(result.reduce((sum, u) => sum + u.cost, 0));
+    } catch (e) {
+      console.error("Failed to load monthly cost:", e);
+    }
+  }, [selectedKeyId]);
+
   const loadRecentRequests = useCallback(async () => {
     try {
       const result = await invoke<RequestRecord[]>("get_recent_requests", {
@@ -52,14 +65,16 @@ function App() {
 
   useEffect(() => {
     loadUsage();
+    loadMonthlyCost();
     loadRecentRequests();
-  }, [loadUsage, loadRecentRequests]);
+  }, [loadUsage, loadMonthlyCost, loadRecentRequests]);
 
   // Listen for real-time token events from proxy
   useEffect(() => {
     const unlisten = listen<ProxyEvent>("token-usage", (event) => {
       setLastEvent(event.payload);
       loadUsage();
+      loadMonthlyCost();
       loadRecentRequests();
       loadKeys(); // refresh in case of auto-registered key
     });
@@ -77,6 +92,7 @@ function App() {
           selectedKeyId={selectedKeyId}
           onSelectKey={setSelectedKeyId}
           usage={usage}
+          monthlyCost={monthlyCost}
           recentRequests={recentRequests}
           lastEvent={lastEvent}
           onOpenSettings={() => setPage("settings")}

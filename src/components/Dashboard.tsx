@@ -6,6 +6,7 @@ interface Props {
   selectedKeyId: number | null;
   onSelectKey: (id: number | null) => void;
   usage: TokenUsage[];
+  monthlyCost: number;
   recentRequests: RequestRecord[];
   lastEvent: ProxyEvent | null;
   onOpenSettings: () => void;
@@ -16,6 +17,7 @@ export default function Dashboard({
   selectedKeyId,
   onSelectKey,
   usage,
+  monthlyCost,
   recentRequests,
   lastEvent,
   onOpenSettings,
@@ -37,11 +39,11 @@ export default function Dashboard({
   // Current speed (from last event within last few seconds)
   const speed = lastEvent ? lastEvent.total_tokens : 0;
 
-  // Budget calc
+  // Budget calc — uses monthly cost, not today's cost
   const monthlyBudget = selectedKeyId
     ? keys.find((k) => k.id === selectedKeyId)?.monthly_budget ?? 100
-    : 100;
-  const budgetPercent = Math.round((totalCost / monthlyBudget) * 100);
+    : keys.reduce((sum, k) => sum + (k.monthly_budget ?? 100), 0);
+  const budgetPercent = Math.round((monthlyCost / monthlyBudget) * 100);
 
   // Filter recent requests to selected key
   const filteredRequests = selectedKeyId

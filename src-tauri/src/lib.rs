@@ -177,9 +177,9 @@ fn get_usage_summary(state: State<AppState>, api_key_id: Option<i64>, period: St
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let time_filter = match period.as_str() {
-        "today" => "AND r.timestamp >= strftime('%s', 'now', 'start of day') * 1000",
-        "week" => "AND r.timestamp >= strftime('%s', 'now', '-7 days') * 1000",
-        "month" => "AND r.timestamp >= strftime('%s', 'now', 'start of month') * 1000",
+        "today" => "AND r.timestamp >= strftime('%s', datetime('now', 'localtime', 'start of day')) * 1000",
+        "week" => "AND r.timestamp >= strftime('%s', datetime('now', 'localtime', '-7 days')) * 1000",
+        "month" => "AND r.timestamp >= strftime('%s', datetime('now', 'localtime', 'start of month')) * 1000",
         _ => "",
     };
 
