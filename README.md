@@ -1,28 +1,73 @@
-# DeepSeek Token Dash 🐋
+# React + TypeScript + Vite
 
-实时监控 DeepSeek API token 消耗的桌面应用，美观、轻量、开箱即用。
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## 功能
+Currently, two official plugins are available:
 
-- ⚡ **实时监控** — token 消耗速度、每次请求明细
-- 💰 **费用换算** — 自动计算花费金额
-- 📊 **历史统计** — 今日/本周/本月趋势图表
-- 🔔 **预算告警** — 设置上限，超限提醒
-- 🖥️ **桌面原生** — 系统托盘、悬浮窗、开机自启
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## 架构
+## React Compiler
 
-Tauri + React + Rust 代理
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## 快速开始
+## Expanding the ESLint configuration
 
-```bash
-# 安装依赖
-pnpm install
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-# 开发模式
-pnpm tauri dev
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-# 构建
-pnpm tauri build
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
