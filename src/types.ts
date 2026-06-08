@@ -44,5 +44,11 @@ export interface ProxyEvent {
   duration_ms: number;
 }
 
+export interface ModelPricing {
+  model: string;
+  input_price_per_1m: number;
+  output_price_per_1m: number;
+}
+
 export type Page = 'dashboard' | 'settings';
 export type SettingsTab = 'budget' | 'pricing' | 'keys' | 'proxy';

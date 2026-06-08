@@ -223,6 +223,78 @@ fn get_usage_summary(state: State<AppState>, api_key_id: Option<i64>, period: St
     Ok(usage)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModelPricing {
+    pub model: String,
+    pub input_price_per_1m: f64,
+    pub output_price_per_1m: f64,
+}
+
+#[tauri::command]
+fn get_setting(state: State<AppState>, key: String) -> Result<String, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+        "SELECT value FROM settings WHERE key = ?1",
+        rusqlite::params![key],
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_model_pricing(state: State<AppState>) -> Result<Vec<ModelPricing>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT model, input_price_per_1m, output_price_per_1m FROM model_pricing")
+        .map_err(|e| e.to_string())?;
+    let pricing = stmt
+        .query_map([], |row| {
+            Ok(ModelPricing {
+                model: row.get(0)?,
+                input_price_per_1m: row.get(1)?,
+                output_price_per_1m: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(pricing)
+}
+
+#[tauri::command]
+fn save_model_pricing(state: State<AppState>, model: String, input_price: f64, output_price: f64) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    db.execute(
+        "INSERT OR REPLACE INTO model_pricing (model, input_price_per_1m, output_price_per_1m, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![model, input_price, output_price, now],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_model_pricing(state: State<AppState>, model: String) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM model_pricing WHERE model = ?1", rusqlite::params![model])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn toggle_floating(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("floating") {
@@ -370,6 +442,11 @@ pub fn run() {
             get_recent_requests,
             toggle_floating,
             show_main,
+            get_setting,
+            set_setting,
+            get_model_pricing,
+            save_model_pricing,
+            delete_model_pricing,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

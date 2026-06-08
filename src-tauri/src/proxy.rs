@@ -218,6 +218,17 @@ async fn handle_connection(
                     )
                     .unwrap_or((String::from("Unknown"), String::from("#fbbf24")));
 
+                // Check budget alert
+                if let Some(alert_msg) = check_budget_alert(&db, key_id) {
+                    use tauri_plugin_notification::NotificationExt;
+                    let _ = app_handle
+                        .notification()
+                        .builder()
+                        .title("预算告警 — DeepSeek Token Dash")
+                        .body(&alert_msg)
+                        .show();
+                }
+
                 // Send event to frontend
                 let event = ProxyEvent {
                     api_key_label: label,
@@ -275,4 +286,49 @@ fn calculate_cost(db: &rusqlite::Connection, model: &str, prompt_tokens: i64, co
     } else {
         0.0
     }
+}
+
+fn check_budget_alert(db: &rusqlite::Connection, key_id: i64) -> Option<String> {
+    // Get this key's monthly budget and alert threshold
+    let key_info: Option<(String, f64)> = db
+        .query_row(
+            "SELECT label, COALESCE(monthly_budget, 100.0) FROM api_keys WHERE id = ?1",
+            rusqlite::params![key_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
+
+    let (label, budget) = key_info?;
+
+    // Get alert threshold from settings (default 80%)
+    let threshold: f64 = db
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'alert_threshold'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(80.0);
+
+    // Get this month's total cost for this key
+    let month_cost: f64 = db
+        .query_row(
+            "SELECT COALESCE(SUM(cost), 0) FROM requests WHERE api_key_id = ?1 AND timestamp >= strftime('%s', 'now', 'start of month') * 1000",
+            rusqlite::params![key_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(0.0);
+
+    if month_cost > 0.0 && budget > 0.0 {
+        let pct = (month_cost / budget) * 100.0;
+        if pct >= threshold {
+            return Some(format!(
+                "「{}」月用量已达预算的 {:.0}%（¥{:.2}/¥{:.0}）",
+                label, pct, month_cost, budget
+            ));
+        }
+    }
+
+    None
 }
