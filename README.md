@@ -1,73 +1,100 @@
-# React + TypeScript + Vite
+# 🐋 DeepSeek Token Dash
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+实时监控 DeepSeek API token 消耗的 Windows 桌面应用。**美观、轻量、开箱即用。**
 
-Currently, two official plugins are available:
+## ✨ 特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- ⚡ **实时监控** — 每次 API 调用自动记录 token 消耗，毫秒级刷新
+- 🔑 **多 Key 管理** — 自动识别请求中的 API Key，按项目独立统计
+- 💰 **费用换算** — 支持自定义模型价格，精确到分
+- 📊 **历史趋势** — 今日/本周/本月消耗趋势一览
+- 🔔 **预算告警** — 设置月预算上限，超出阈值 Windows 原生通知
+- 🖥️ **桌面原生** — 系统托盘常驻、悬浮窗置顶、开机自启
+- 🎨 **深色主题** — 320px 竖屏面板，干净利落
 
-## React Compiler
+## 📸 截图
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+┌─────────────┐
+│ 🐋 Token Dash ●│
+│ [▼ 全部汇总   ]│
+│               │
+│ ┌───────────┐ │
+│ │ ⚡ 实时速度 │ │
+│ │   1.2k/次  │ │
+│ └───────────┘ │
+│ ┌─┬─┬─┐      │
+│ │📊│💰│🔔│   │
+│ └─┴─┴─┘      │
+│ ┌───────────┐ │
+│ │📈 趋势图   │ │
+│ └───────────┘ │
+│ ┌───────────┐ │
+│ │📋 各Key汇总│ │
+│ └───────────┘ │
+└─────────────┘
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🚀 快速开始
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 环境要求
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Windows 10/11
+- [Node.js](https://nodejs.org/) ≥ 20
+- [Rust](https://rustup.rs/) ≥ 1.70 (MSVC toolchain)
+- [pnpm](https://pnpm.io/) ≥ 8
+
+### 开发
+
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发模式（热更新）
+pnpm tauri dev
 ```
+
+### 构建
+
+```bash
+pnpm tauri build
+```
+
+产物在 `src-tauri/target/release/bundle/nsis/`。
+
+## 🏗️ 架构
+
+```
+你的代码 (Python/Node/...)
+    │  endpoint → 127.0.0.1:8800
+    ▼
+┌──────────────────────┐
+│  Tauri 桌面应用        │
+│  ┌─────────────────┐  │
+│  │ Rust HTTP 代理    │  │  提取 token, 转发请求
+│  │ -- SQLite 存储   │  │
+│  │ -- 费用计算      │  │
+│  │ -- 预算告警      │  │
+│  └─────────────────┘  │
+│  ┌─────────────────┐  │
+│  │ React 前端        │  │  仪表盘 + 悬浮窗
+│  │ -- 实时事件      │  │
+│  │ -- 320px 竖屏    │  │
+│  └─────────────────┘  │
+└──────────────────────┘
+         │
+         │ 转发到真实 API
+         ▼
+    api.deepseek.com
+```
+
+## 📖 使用说明
+
+1. 启动 DeepSeek Token Dash
+2. 把你的 API 请求地址从 `https://api.deepseek.com` 改为 `http://127.0.0.1:8800`
+3. 像往常一样调用 API，token 数据自动出现在仪表盘
+4. 右键托盘图标可显示悬浮窗
+
+## 📄 开源协议
+
+MIT
